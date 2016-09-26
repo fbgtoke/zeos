@@ -26,7 +26,7 @@ SYSLDFLAGS = -T system.lds
 USRLDFLAGS = -T user.lds
 LINKFLAGS = -g
 
-SYSOBJ = interrupt.o entry.o sys_call_table.o io.o sched.o sys.o mm.o devices.o utils.o hardware.o list.o handler_keyboard.o rsi_keyboard.o
+SYSOBJ = interrupt.o entry.o sys_call_table.o io.o sched.o sys.o mm.o devices.o utils.o hardware.o list.o interrupt_handler.o rsi.o sys_calls.o
 
 LIBZEOS = -L . -l zeos
 
@@ -62,10 +62,12 @@ user.o:user.c $(INCLUDEDIR)/libc.h
 
 interrupt.o:interrupt.c $(INCLUDEDIR)/interrupt.h $(INCLUDEDIR)/segment.h $(INCLUDEDIR)/types.h
 
-handler_keyboard.s: handler_keyboard.S $(INCLUDEDIR)/asm.h $(INCLUDEDIR)/segment.h entry.S
+interrupt_handler.s: interrupt_handler.S $(INCLUDEDIR)/asm.h $(INCLUDEDIR)/segment.h entry.S
 	$(CPP) $(ASMFLAGS) -o $@ $<
 
-rsi_keyboard.o: rsi_keyboard.c $(INCLUDEDIR)/io.h $(INCLUDEDIR)/interrupt.h
+rsi.o: rsi.c $(INCLUDEDIR)/io.h $(INCLUDEDIR)/interrupt.h
+
+sys_calls.o: sys_calls.c $(INCLUDEDIR)/io.h
 
 io.o:io.c $(INCLUDEDIR)/io.h
 

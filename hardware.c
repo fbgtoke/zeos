@@ -79,7 +79,7 @@ void return_gate(Word ds, Word ss, DWord esp, Word cs, DWord eip)
  *
  *    register 0x21:
  *    7 6 5 4 3 2 1 0
- *    x x x x x x x x
+ *    x x x x x x 0 0
  *    
  *    bit 0 : Timer
  *    bit 1 : Keyboard
@@ -103,7 +103,7 @@ __asm__ __volatile__(
   "call delay\n\t"
   "sti"
   : /*no output*/
-  : "i" (0xfd)       /* 0xFF = 11111111 -> all bits disabled */
+  : "i" (0xfc)       /* 0xFF = 11111111 -> all bits disabled */
   : "%al" );
 }
 

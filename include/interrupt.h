@@ -20,5 +20,8 @@ void setIdt();
 
 // Interrupt handlers
 void handler_keyboard();
+void handler_clock();
+
+void system_call_handler();
 
 #endif  /* __INTERRUPT_H__ */
