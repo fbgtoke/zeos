@@ -1,5 +1,7 @@
 #include <io.h> //
 #include <devices.h> // sys_write_console
+#include <interrupt.h>
+#include <errno.h>
 
 #define LECTURA 0
 #define ESCRIPTURA 1
@@ -17,21 +19,23 @@ int sys_write( int fd, char* buffer, int size) {
 	// return ’ Negative number in case of error (specifying the kind of error) and the number of bytes written if OK.
 
 	// Check file descriptor
-	int fd_error = check_fd(fd, LECTURA);
+	int fd_error = check_fd(fd, ESCRIPTURA);
 	if (fd_error != 0)
 		return fd_error;
 
 	// Check buffer is not NULL pointer
-	#define SYS_WRITE_NULL_POINTER -10;
 	if (buffer == NULL)
-		return SYS_WRITE_NULL_POINTER;
+		return -EFAULT;
 
 	// Check size is positive
-	#define SYS_WRITE_INVALID_SIZE -11;
-	if (size <= 0)
-		return SYS_WRITE_INVALID_SIZE;
+	if (size < 0)
+		return -EINVAL;
 
 	// Print
 	volatile int erno = sys_write_console(buffer, size);
 	return erno;
+}
+
+int sys_getticks() {
+	return zeos_ticks;
 }

@@ -24,4 +24,5 @@ void handler_clock();
 
 void system_call_handler();
 
+int zeos_ticks;
 #endif  /* __INTERRUPT_H__ */

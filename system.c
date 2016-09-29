@@ -108,6 +108,8 @@ int __attribute__((__section__(".text.main")))
    */
   return_gate(__USER_DS, __USER_DS, USER_ESP, __USER_CS, L_USER_START);
 
+  zeos_ticks = 0;
+
   /* The execution never arrives to this point */
   return 0;
 }

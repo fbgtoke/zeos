@@ -43,3 +43,31 @@ int strlen(char *a)
   return i;
 }
 
+int write(int fd, char* buffer, int size) {
+	int erno;
+
+	asm(
+		"int	$0x80\n\t"
+		: "=a" (erno)
+		: "a" (0x04), "b" (fd), "c" (buffer), "d" (size)
+	);
+
+	if (erno < 0) {
+		errno = -erno;
+		return -1;
+	}
+
+	return erno;
+}
+
+int gettime() {
+	int erno;
+
+	asm(
+		"int	$0x80\n\t"
+		: "=a" (erno)
+		: "a" (0x0a)
+	);
+
+	return erno;
+}
