@@ -21,6 +21,10 @@ iret;
 
 #endif
 
+/******************************/
+/* Clock Interrupt Handler    */
+/******************************/
+
 #ifndef HANDLER_CLOCK
 #define HANDLER_CLOCK
 
@@ -35,6 +39,10 @@ RESTORE_ALL
 iret;
 
 #endif
+
+/******************************/
+/* System Calls Handler       */
+/******************************/
 
 #ifndef HANDLER_SYSCALL
 #define HANDLER_SYSCALL

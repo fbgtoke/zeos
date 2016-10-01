@@ -8,8 +8,7 @@
 
 int errno;
 
-void itoa(int a, char *b)
-{
+void itoa(int a, char *b) {
   int i, i1;
   char c;
   
@@ -32,8 +31,7 @@ void itoa(int a, char *b)
   b[i]=0;
 }
 
-int strlen(char *a)
-{
+int strlen(char *a) {
   int i;
   
   i=0;
@@ -41,6 +39,33 @@ int strlen(char *a)
   while (a[i]!=0) i++;
   
   return i;
+}
+
+char* strcpy(char *strDest, const char *strSrc) {
+    char *temp = strDest;
+    while(*strDest++ = *strSrc++); // or while((*strDest++=*strSrc++) != '\0');
+    return temp;
+}
+
+char* strcat(char *dest, const char *src) {
+    int i,j;
+    for (i = 0; dest[i] != '\0'; i++)
+        ;
+    for (j = 0; src[j] != '\0'; j++)
+        dest[i+j] = src[j];
+    dest[i+j] = '\0';
+    return dest;
+}
+
+void perror() {
+  char msg[128];
+  char num[4];
+  itoa(errno, num);
+
+  strcpy(msg, "Error #");
+  strcat(msg, num);
+  strcat(msg, ". Please refer to the Linux manual for more information\n");
+  write(1, msg, 128);
 }
 
 int write(int fd, char* buffer, int size) {
@@ -54,6 +79,7 @@ int write(int fd, char* buffer, int size) {
 
 	if (erno < 0) {
 		errno = -erno;
+    perror();
 		return -1;
 	}
 
