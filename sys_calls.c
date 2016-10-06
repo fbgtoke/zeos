@@ -32,6 +32,8 @@ int sys_write( int fd, char* buffer, int size) {
 		return -EINVAL;
 
 	// Print
+
+	// copy from user
 	volatile int erno = sys_write_console(buffer, size);
 	return erno;
 }

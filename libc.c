@@ -79,7 +79,6 @@ int write(int fd, char* buffer, int size) {
 
 	if (erno < 0) {
 		errno = -erno;
-    perror();
 		return -1;
 	}
 
