@@ -15,7 +15,7 @@ union task_union protected_tasks[NR_TASKS+2]
 
 union task_union *task = &protected_tasks[1]; /* == union task_union task[NR_TASKS] */
 
-#if 0
+#if 1
 struct task_struct *list_head_to_task_struct(struct list_head *l)
 {
   return list_entry( l, struct task_struct, list);
@@ -23,6 +23,7 @@ struct task_struct *list_head_to_task_struct(struct list_head *l)
 #endif
 
 extern struct list_head blocked;
+struct task_struct* idle_task;
 
 
 /* get_DIR - Returns the Page Directory address for task 't' */
@@ -59,9 +60,15 @@ void cpu_idle(void)
 	}
 }
 
-void init_idle (void)
-{
+void init_idle (void) {
+	struct list_head* free_list_head = freequeue.next;
+	list_del(free_list_head); // pop de la queue
 
+	struct task_struct* free_task = list_head_to_task_struct(free_list_head);
+	free_task->PID = 0;
+
+	int dir = allocate_DIR(free_task);
+	idle_task = free_task;
 }
 
 void init_task1(void)
@@ -70,6 +77,13 @@ void init_task1(void)
 
 
 void init_sched(){
+	// Inicialitzar freequeue i ready	queue
+	INIT_LIST_HEAD( &freequeue );
+	INIT_LIST_HEAD( &readyqueue );
+
+	int i;
+	for(i = 0; i < NR_TASKS; ++i)
+		list_add( &(task[i].task.list), &freequeue );
 
 }
 
@@ -82,5 +96,33 @@ struct task_struct* current()
 	: "=g" (ret_value)
   );
   return (struct task_struct*)(ret_value&0xfffff000);
+}
+
+void task_switch(union task_union *t) {
+	__asm__ __volatile__(
+		"pushl %esi\n\t"
+		"pushl %edi\n\t"
+		"pushl %ebx\n\t"
+		"pushl 8(%ebp)\n\t"
+		"call inner_task_switch\n\t"
+		"popl %ebx\n\t"
+		"popl %edi\n\t"
+		"popl %esi\n\t"
+	);
+}
+
+void inner_task_switch(union task_union *t) {
+	/*
+		1) Update TSS to point to t's system stack
+		2) Change user address space (set_cr3)
+		3) Store current EBP in the PCB
+		4) Change system stack by setting ESP to point to the new PCB's EBP value
+		5) Restore EBP from stack
+		6) ret
+	*/
+
+	tss.esp0 = &t->stack[KERNEL_STACK_SIZE]; // 1
+	set_cr3(t->task.dir_pages_baseAddr); // 2
+//	__asm__ __volatile__("movl ");
 }
 
