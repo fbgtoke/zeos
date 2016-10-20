@@ -121,8 +121,11 @@ void inner_task_switch(union task_union *t) {
 		6) ret
 	*/
 
+	struct task_struct* cur = current();
+
 	tss.esp0 = &t->stack[KERNEL_STACK_SIZE]; // 1
 	set_cr3(t->task.dir_pages_baseAddr); // 2
-//	__asm__ __volatile__("movl ");
+	__asm__ __volatile__("movl %%ebp, (%0)" : : "g" (&(t->task.kernel_esp)));
+	__asm__ __volatile__("movl (%0), %%ebp" : : "g" (&(cur->kernel_esp)));
 }
 
