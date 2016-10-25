@@ -85,7 +85,7 @@ int __attribute__((__section__(".text.main")))
 
 /* Initialize an address space to be used for the monoprocess version of ZeOS */
 
-  monoprocess_init_addr_space(); /* TO BE DELETED WHEN ADDED THE PROCESS MANAGEMENT CODE TO BECOME MULTIPROCESS */
+  //monoprocess_init_addr_space(); /* TO BE DELETED WHEN ADDED THE PROCESS MANAGEMENT CODE TO BECOME MULTIPROCESS */
 
   /* Initialize Scheduling */
   init_sched();
@@ -102,13 +102,12 @@ int __attribute__((__section__(".text.main")))
   printk("Entering user mode...");
 
   enable_int();
+
   /*
    * We return from a 'theorical' call to a 'call gate' to reduce our privileges
    * and going to execute 'magically' at 'usr_main'...
    */
   return_gate(__USER_DS, __USER_DS, USER_ESP, __USER_CS, L_USER_START);
-
-  zeos_ticks = 0;
 
   /* The execution never arrives to this point */
   return 0;

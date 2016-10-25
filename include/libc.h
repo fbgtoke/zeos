@@ -22,4 +22,6 @@ void perror();
 int write(int fd, char *buffer, int size);
 int gettime();
 
+int getpid();
+
 #endif  /* __LIBC_H__ */

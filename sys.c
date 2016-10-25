@@ -37,6 +37,13 @@ int sys_fork()
 {
   int PID=-1;
 
+  // a) Get free task_struct (if no available, return error)
+  if (list_empty(&freequeue))
+    return PID;
+
+  struct task_struct* task = list_first(&freequeue);
+  list_del(task);
+
   // creates the child process
   
   return PID;

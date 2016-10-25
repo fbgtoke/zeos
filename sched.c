@@ -56,23 +56,41 @@ void cpu_idle(void)
 
 	while(1)
 	{
-	;
+	printk("IDLE    ");
 	}
 }
 
 void init_idle (void) {
-	struct list_head* free_list_head = freequeue.next;
+	struct list_head* free_list_head = list_first(&freequeue);
 	list_del(free_list_head); // pop de la queue
 
 	struct task_struct* free_task = list_head_to_task_struct(free_list_head);
 	free_task->PID = 0;
 
-	int dir = allocate_DIR(free_task);
+	allocate_DIR(free_task);
 	idle_task = free_task;
+
+	// 1) Store in the stack of the idle process the address of the code that it will execute (address of the cpu_idle function).
+	// 2) Store in the stack the initial value that we want to assign to register ebp when undoing the dynamic link (it can be 0)
+	// 3) keep (in a field of its task_struct) the position of the stack where we have stored the initial value for the ebp register.
+
+	union task_union* idle_task_union = (union task_union*) idle_task;
+	idle_task_union->stack[KERNEL_STACK_SIZE - 1] = 0; // Dummy for %ebp
+	idle_task_union->stack[KERNEL_STACK_SIZE - 2] = (int)&cpu_idle;
+
+	idle_task->kernel_esp = (int) &(idle_task_union->stack[KERNEL_STACK_SIZE - 2]);
 }
 
-void init_task1(void)
-{
+void init_task1(void) {
+	struct task_struct* init = current();
+
+	init->PID = 1;
+	allocate_DIR(init);
+	set_user_pages(init);
+
+	union task_union* init_union = (union task_union*) init;
+	tss.esp0 = (DWord)&(init_union->stack[KERNEL_STACK_SIZE]);
+	set_cr3(init->dir_pages_baseAddr);
 }
 
 
@@ -83,7 +101,7 @@ void init_sched(){
 
 	int i;
 	for(i = 0; i < NR_TASKS; ++i)
-		list_add( &(task[i].task.list), &freequeue );
+		list_add_tail( &(task[i].task.list), &freequeue );
 
 }
 
@@ -123,9 +141,10 @@ void inner_task_switch(union task_union *t) {
 
 	struct task_struct* cur = current();
 
-	tss.esp0 = &t->stack[KERNEL_STACK_SIZE]; // 1
+	tss.esp0 = (int) &(t->stack[KERNEL_STACK_SIZE]); // 1
 	set_cr3(t->task.dir_pages_baseAddr); // 2
-	__asm__ __volatile__("movl %%ebp, (%0)" : : "g" (&(t->task.kernel_esp)));
-	__asm__ __volatile__("movl (%0), %%ebp" : : "g" (&(cur->kernel_esp)));
+	__asm__ __volatile__("movl %%ebp, (%0)" : : "g" (&(t->task.kernel_esp))); // 3
+	__asm__ __volatile__("movl (%0), %%ebp" : : "g" (&(cur->kernel_esp))); // 4
+	__asm__ __volatile__("popl %ebp"); // 5
 }
 

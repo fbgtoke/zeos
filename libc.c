@@ -96,3 +96,15 @@ int gettime() {
 
 	return erno;
 }
+
+int getpid() {
+	int PID;
+
+	asm(
+		"int	$0x80\n\t"
+		: "=a" (PID)
+		: "a" (20)
+	);
+
+	return PID;
+}

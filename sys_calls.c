@@ -2,6 +2,7 @@
 #include <devices.h> // sys_write_console
 #include <interrupt.h>
 #include <errno.h>
+#include <sched.h>
 
 #define LECTURA 0
 #define ESCRIPTURA 1
