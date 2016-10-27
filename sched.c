@@ -91,6 +91,9 @@ void init_task1(void) {
 	union task_union* init_union = (union task_union*) init;
 	tss.esp0 = (DWord)&(init_union->stack[KERNEL_STACK_SIZE]);
 	set_cr3(init->dir_pages_baseAddr);
+
+	init->state = ST_RUN;
+	init->quantum = 10;
 }
 
 
@@ -148,3 +151,70 @@ void inner_task_switch(union task_union *t) {
 	__asm__ __volatile__("popl %ebp"); // 5
 }
 
+
+/* Process Scheduling */
+void update_sched_data_rr() {
+	--ticks_to_leave;
+}
+
+int needs_sched_rr() {
+	if ((ticks_to_leave == 0)&&(!list_empty(&readyqueue))) return 1;
+  if (ticks_to_leave == 0) ticks_to_leave = get_quantum(current());
+	return 0;
+}
+
+void update_process_state_rr(struct task_struct *t, struct list_head *dest) {
+	if (t->state != ST_RUN)
+		list_del(&(t->list));
+
+  if (dest != NULL) {
+    
+		list_add_tail(&(t->list), dest);
+
+    if (dest != &readyqueue) {
+			t->state = ST_BLOCKED;
+		} else {
+      t->state = ST_READY;
+    }
+
+  } else {
+		t->state = ST_RUN;
+	}
+}
+
+void sched_next_rr() {
+	struct list_head *e;
+  struct task_struct *t;
+
+  e = list_first(&readyqueue);
+
+  if (e) {
+    list_del(e);
+
+    t = list_head_to_task_struct(e);
+  } else {
+    t = idle_task;
+  }
+
+	t->state = ST_RUN;
+  ticks_to_leave = get_quantum(t);
+
+	task_switch((union task_union*)t);
+}
+
+void schedule() {
+	update_sched_data_rr();
+
+  if (needs_sched_rr()) {
+    update_process_state_rr(current(), &readyqueue);
+    sched_next_rr();
+	}
+}
+
+int get_quantum(struct task_struct* task) {
+	return task->quantum;
+}
+
+void set_quantum(struct task_struct* task, unsigned int new_quantum) {
+	task->quantum = new_quantum;
+}

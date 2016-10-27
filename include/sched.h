@@ -20,6 +20,10 @@ struct task_struct {
 	unsigned long kernel_esp;
 
 	struct list_head list; // anchor para la lista
+
+	// Data for scheduling
+	unsigned int quantum;
+	enum state_t state;
 };
 
 union task_union {
@@ -59,9 +63,16 @@ page_table_entry * get_PT (struct task_struct *t) ;
 page_table_entry * get_DIR (struct task_struct *t) ;
 
 /* Headers for the scheduling policy */
+unsigned int ticks_to_leave;
+
 void sched_next_rr();
 void update_process_state_rr(struct task_struct *t, struct list_head *dest);
 int needs_sched_rr();
 void update_sched_data_rr();
+
+void schedule();
+
+int get_quantum(struct task_struct* task);
+void set_quantum(struct task_struct* task, unsigned int new_quantum);
 
 #endif  /* __SCHED_H__ */

@@ -108,3 +108,15 @@ int getpid() {
 
 	return PID;
 }
+
+int fork() {
+	int erno;
+
+	asm(
+		"int	$0x80\n\t"
+		: "=a" (erno)
+		: "a" (2)
+	);
+
+	return erno;
+}

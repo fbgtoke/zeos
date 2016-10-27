@@ -30,4 +30,6 @@ void rsi_keyboard() {
 void rsi_clock() {
 	++zeos_ticks;
 	zeos_show_clock();
+
+	schedule();
 }
