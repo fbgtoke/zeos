@@ -8,22 +8,28 @@
 #include <list.h>
 #include <types.h>
 #include <mm_address.h>
+#include <stats.h>
+#include <utils.h>
 
 #define NR_TASKS      10
 #define KERNEL_STACK_SIZE	1024
 
+#define QUANTUM 100
+
 enum state_t { ST_RUN, ST_READY, ST_BLOCKED };
 
+extern int numPID;
 struct task_struct {
-  int PID;			/* Process ID. This MUST be the first field of the struct. */
-  page_table_entry * dir_pages_baseAddr;
+  	int PID;			/* Process ID. This MUST be the first field of the struct. */
+  	page_table_entry * dir_pages_baseAddr;
 	unsigned long kernel_esp;
 
 	struct list_head list; // anchor para la lista
 
 	// Data for scheduling
-	unsigned int quantum;
+	int quantum;
 	enum state_t state;
+	struct stats proc_stats;
 };
 
 union task_union {
@@ -63,7 +69,7 @@ page_table_entry * get_PT (struct task_struct *t) ;
 page_table_entry * get_DIR (struct task_struct *t) ;
 
 /* Headers for the scheduling policy */
-unsigned int ticks_to_leave;
+int ticks_to_leave;
 
 void sched_next_rr();
 void update_process_state_rr(struct task_struct *t, struct list_head *dest);
@@ -74,5 +80,12 @@ void schedule();
 
 int get_quantum(struct task_struct* task);
 void set_quantum(struct task_struct* task, unsigned int new_quantum);
+
+/* Headers for stats */
+void init_stats(struct stats *s);
+void update_stats(unsigned long *v, unsigned long *elapsed);
+struct stats * get_task_stats (struct task_struct *t);
+struct list_head *get_task_list(struct  task_struct *t);
+
 
 #endif  /* __SCHED_H__ */

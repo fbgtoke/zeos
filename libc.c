@@ -43,7 +43,7 @@ int strlen(char *a) {
 
 char* strcpy(char *strDest, const char *strSrc) {
     char *temp = strDest;
-    while(*strDest++ = *strSrc++); // or while((*strDest++=*strSrc++) != '\0');
+    while((*strDest++ = *strSrc++)); // or while((*strDest++=*strSrc++) != '\0');
     return temp;
 }
 
@@ -71,7 +71,7 @@ void perror() {
 int write(int fd, char* buffer, int size) {
 	int erno;
 
-	asm(
+	__asm__ __volatile__(
 		"int	$0x80\n\t"
 		: "=a" (erno)
 		: "a" (0x04), "b" (fd), "c" (buffer), "d" (size)
@@ -88,7 +88,7 @@ int write(int fd, char* buffer, int size) {
 int gettime() {
 	int erno;
 
-	asm(
+	__asm__ __volatile__(
 		"int	$0x80\n\t"
 		: "=a" (erno)
 		: "a" (0x0a)
@@ -100,23 +100,55 @@ int gettime() {
 int getpid() {
 	int PID;
 
-	asm(
+	__asm__ __volatile__(
 		"int	$0x80\n\t"
 		: "=a" (PID)
 		: "a" (20)
 	);
 
+  errno = 0;
 	return PID;
 }
 
 int fork() {
-	int erno;
+	int result;
+  
+  __asm__ __volatile__ (
+    "int $0x80\n\t"
+    :"=a" (result)
+    :"a" (2)
+  );
+  
+  if (result < 0) {
+    errno = -result;
+    return -1;
+  }
+  errno = 0;
 
-	asm(
-		"int	$0x80\n\t"
-		: "=a" (erno)
-		: "a" (2)
-	);
+  return result;
+}
 
-	return erno;
+void exit(void) {
+  __asm__ __volatile__ (
+    "int $0x80\n\t"
+    :
+    :"a" (1)
+  );
+}
+
+int get_stats(int pid, struct stats *st) {
+  int result;
+  __asm__ __volatile__ (
+    "int $0x80\n\t"
+    : "=a" (result)
+    : "a" (35), "b" (pid), "c" (st)
+  );
+
+  if (result < 0) {
+    errno = -result;
+    return -1;
+  }
+  
+  errno = 0;
+  return result;
 }

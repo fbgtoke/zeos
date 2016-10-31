@@ -8,13 +8,12 @@ int __attribute__ ((__section__(".text.main")))
   main(void)
 {
 
-  //runjp();
+  	runjp();
+	//int f = fork();
 
-	fork();
-  while(1) {
-    pid = getpid();
-
-		itoa(pid, buff);
-		write(1, buff, 24);
-  }
+	while(1) {
+	  	//pid = getpid();
+	  	//itoa(-1, buff);
+	  	//write(1, buff, 24);
+	}
 }

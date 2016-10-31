@@ -14,6 +14,7 @@ union task_union protected_tasks[NR_TASKS+2]
   __attribute__((__section__(".data.task")));
 
 union task_union *task = &protected_tasks[1]; /* == union task_union task[NR_TASKS] */
+int numPID = 1;
 
 #if 1
 struct task_struct *list_head_to_task_struct(struct list_head *l)
@@ -66,34 +67,44 @@ void init_idle (void) {
 
 	struct task_struct* free_task = list_head_to_task_struct(free_list_head);
 	free_task->PID = 0;
-
+	free_task->quantum = QUANTUM;
+	
+	init_stats(&(free_task->proc_stats));
+	printk("Init stats for idle process\n");
 	allocate_DIR(free_task);
-	idle_task = free_task;
 
 	// 1) Store in the stack of the idle process the address of the code that it will execute (address of the cpu_idle function).
 	// 2) Store in the stack the initial value that we want to assign to register ebp when undoing the dynamic link (it can be 0)
 	// 3) keep (in a field of its task_struct) the position of the stack where we have stored the initial value for the ebp register.
 
-	union task_union* idle_task_union = (union task_union*) idle_task;
-	idle_task_union->stack[KERNEL_STACK_SIZE - 1] = 0; // Dummy for %ebp
-	idle_task_union->stack[KERNEL_STACK_SIZE - 2] = (int)&cpu_idle;
+	union task_union* free_union = (union task_union*) free_task;
+	free_union->stack[KERNEL_STACK_SIZE - 1] = (unsigned long)&cpu_idle;
+	free_union->stack[KERNEL_STACK_SIZE - 2] = 0; // Dummy for %ebp
 
-	idle_task->kernel_esp = (int) &(idle_task_union->stack[KERNEL_STACK_SIZE - 2]);
+	free_task->kernel_esp = (int) &(free_union->stack[KERNEL_STACK_SIZE - 2]);
+
+	idle_task = free_task;
 }
 
 void init_task1(void) {
-	struct task_struct* init = current();
+	struct list_head *free_list_head = list_first(&freequeue);
+  	list_del(free_list_head);
 
-	init->PID = 1;
+	struct task_struct *init = list_head_to_task_struct(free_list_head);
+	union task_union* init_union = (union task_union*) init;
+
+	init->PID = numPID++;
+	init->state = ST_RUN;
+	init->quantum = QUANTUM;
+	
+	ticks_to_leave = init->quantum;
+
+	init_stats(&init->proc_stats);
 	allocate_DIR(init);
 	set_user_pages(init);
 
-	union task_union* init_union = (union task_union*) init;
 	tss.esp0 = (DWord)&(init_union->stack[KERNEL_STACK_SIZE]);
 	set_cr3(init->dir_pages_baseAddr);
-
-	init->state = ST_RUN;
-	init->quantum = 10;
 }
 
 
@@ -119,19 +130,6 @@ struct task_struct* current()
   return (struct task_struct*)(ret_value&0xfffff000);
 }
 
-void task_switch(union task_union *t) {
-	__asm__ __volatile__(
-		"pushl %esi\n\t"
-		"pushl %edi\n\t"
-		"pushl %ebx\n\t"
-		"pushl 8(%ebp)\n\t"
-		"call inner_task_switch\n\t"
-		"popl %ebx\n\t"
-		"popl %edi\n\t"
-		"popl %esi\n\t"
-	);
-}
-
 void inner_task_switch(union task_union *t) {
 	/*
 		1) Update TSS to point to t's system stack
@@ -142,13 +140,63 @@ void inner_task_switch(union task_union *t) {
 		6) ret
 	*/
 
-	struct task_struct* cur = current();
+	printk("Inner Switching\n");
 
+	page_table_entry *new_DIR = get_DIR(&t->task);
 	tss.esp0 = (int) &(t->stack[KERNEL_STACK_SIZE]); // 1
-	set_cr3(t->task.dir_pages_baseAddr); // 2
-	__asm__ __volatile__("movl %%ebp, (%0)" : : "g" (&(t->task.kernel_esp))); // 3
-	__asm__ __volatile__("movl (%0), %%ebp" : : "g" (&(cur->kernel_esp))); // 4
-	__asm__ __volatile__("popl %ebp"); // 5
+	set_cr3(new_DIR); // 2
+
+	printk("ASM 1\n");
+	__asm__ __volatile__(
+		"movl %%ebp, %0\n\t"
+		: "=g" (current()->kernel_esp)
+		: 
+	); // 3
+
+	printk("ASM 2\n");
+	__asm__ __volatile__(
+		"movl %0, %%esp" 
+		: 
+		: "g" (t->task.kernel_esp)
+	); // 4
+
+	printk("ASM 3\n");
+	__asm__ __volatile__(
+		"popl %%ebp"
+		:
+		:
+	); // 5
+
+	printk("ASM 4\n");
+	__asm__ __volatile__(
+		"ret\n\t"
+		:
+		:
+	); // 6
+}
+
+void task_switch(union task_union *t) {
+	printk("Switching\n");
+
+	__asm__ __volatile__(
+		"pushl %esi\n\t"
+		"pushl %edi\n\t"
+		"pushl %ebx\n\t"
+	);
+
+	printk("Going to inner\n");
+
+	inner_task_switch(t);
+
+	printk("Exiting inner\n");
+
+	__asm__ __volatile__ (
+		"popl %ebx\n\t"
+		"popl %edi\n\t"
+		"popl %esi\n\t"
+	);
+
+	printk("Done switching\n");
 }
 
 
@@ -159,7 +207,7 @@ void update_sched_data_rr() {
 
 int needs_sched_rr() {
 	if ((ticks_to_leave == 0)&&(!list_empty(&readyqueue))) return 1;
-  if (ticks_to_leave == 0) ticks_to_leave = get_quantum(current());
+  	if (ticks_to_leave == 0) ticks_to_leave = current()->quantum;
 	return 0;
 }
 
@@ -173,8 +221,9 @@ void update_process_state_rr(struct task_struct *t, struct list_head *dest) {
 
     if (dest != &readyqueue) {
 			t->state = ST_BLOCKED;
-		} else {
-      t->state = ST_READY;
+	} else {
+		update_stats(&(current()->proc_stats.system_ticks), &(current()->proc_stats.elapsed_total_ticks));
+      	t->state = ST_READY;
     }
 
   } else {
@@ -184,30 +233,38 @@ void update_process_state_rr(struct task_struct *t, struct list_head *dest) {
 
 void sched_next_rr() {
 	struct list_head *e;
-  struct task_struct *t;
+	struct task_struct *t;
 
-  e = list_first(&readyqueue);
+	e = list_first(&readyqueue);
 
-  if (e) {
-    list_del(e);
+	if (e) {
+		list_del(e);
 
-    t = list_head_to_task_struct(e);
-  } else {
-    t = idle_task;
-  }
+		t = list_head_to_task_struct(e);
+	} else {
+		t = idle_task;
+	}
 
 	t->state = ST_RUN;
-  ticks_to_leave = get_quantum(t);
+	ticks_to_leave = get_quantum(t);
 
+	printk("Going to switch\n");
 	task_switch((union task_union*)t);
+	printk("Switched\n");
+
+	update_stats(&(current()->proc_stats.system_ticks), &(current()->proc_stats.elapsed_total_ticks));
+	update_stats(&(t->proc_stats.ready_ticks), &(t->proc_stats.elapsed_total_ticks));
+	t->proc_stats.total_trans++;
 }
 
 void schedule() {
 	update_sched_data_rr();
 
-  if (needs_sched_rr()) {
-    update_process_state_rr(current(), &readyqueue);
-    sched_next_rr();
+  	if (needs_sched_rr()) {
+  		printk("Going to update state\n");
+	    update_process_state_rr(current(), &readyqueue);
+	    printk("Going to fetch next\n");
+	    sched_next_rr();
 	}
 }
 
@@ -217,4 +274,36 @@ int get_quantum(struct task_struct* task) {
 
 void set_quantum(struct task_struct* task, unsigned int new_quantum) {
 	task->quantum = new_quantum;
+}
+
+
+void init_stats(struct stats *s) {
+	s->user_ticks = 0;
+	s->system_ticks = 0;
+	s->blocked_ticks = 0;
+	s->ready_ticks = 0;
+	s->elapsed_total_ticks = get_ticks();
+	s->total_trans = 0;
+	s->remaining_ticks = get_ticks();
+}
+
+void update_stats(unsigned long *v, unsigned long *elapsed) {
+  unsigned long current_ticks;
+  
+  current_ticks = get_ticks();
+  
+  *v += current_ticks - *elapsed;
+  
+  *elapsed=current_ticks;
+  
+}
+
+struct stats * get_task_stats (struct task_struct* t){
+  struct stats * r = &(t->proc_stats);
+  return r;
+}
+
+struct list_head * get_task_list(struct  task_struct* t){
+  struct list_head * r = &(t->list);
+  return r;
 }

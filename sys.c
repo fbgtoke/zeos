@@ -2,34 +2,27 @@
  * sys.c - Syscalls implementation
  */
 #include <devices.h>
-
 #include <utils.h>
-
 #include <io.h>
-
 #include <mm.h>
-
 #include <mm_address.h>
-
 #include <sched.h>
+#include <errno.h>
 
 #define LECTURA 0
 #define ESCRIPTURA 1
 
-int check_fd(int fd, int permissions)
-{
+int check_fd(int fd, int permissions) {
   if (fd!=1) return -9; /*EBADF*/
   if (permissions!=ESCRIPTURA) return -13; /*EACCES*/
   return 0;
 }
 
-int sys_ni_syscall()
-{
+int sys_ni_syscall() {
 	return -38; /*ENOSYS*/
 }
 
-int sys_getpid()
-{
+int sys_getpid() {
 	return current()->PID;
 }
 
@@ -37,79 +30,122 @@ int ret_from_fork() {
 	return 0;
 }
 
-int sys_fork()
-{
-  // creates the child process
-
-  int PID=-1;
-
-  // a) Get free task_struct (if no available, return error)
+int sys_fork() {
+    
   if (list_empty(&freequeue))
-    return -1;
+    return -ENOMEM;
 
-  struct list_head *task_header = list_first(&freequeue);
-  struct task_struct* task = list_head_to_task_struct(task_header);
-  list_del(task_header);
+  struct list_head *lhcurrent = list_first(&freequeue);
+  list_del(lhcurrent);
 
-  // b) Inherit system data
-  copy_data((union task_union*) current(), (union task_union*) task, PAGE_SIZE);
-
-  // c) Initialize directories
-  allocate_DIR(task);
-	copy_data(get_PT(current()), get_PT(task), (NUM_PAG_CODE + PAG_LOG_INIT_CODE) * sizeof(page_table_entry));
-
-  // d) Search physical pages in which to map logical pages for data+stack of the child process
-  int i;
-  int allocated_frames[NUM_PAG_DATA];
-  for (i = 0; i < NUM_PAG_DATA; ++i) {
-    allocated_frames[i] = alloc_frame();
-
-    if (allocated_frames[i] == -1) { // Error
-      int j;
-      for (j = 0; j <= i; ++i) {
-        free_frame(allocated_frames[j]);
+  union task_union *uchild = (union task_union*)list_head_to_task_struct(lhcurrent);
+  
+  /* Copy the parent's task struct to child's */
+  copy_data(current(), uchild, sizeof(union task_union));
+  
+  /* new pages dir */
+  allocate_DIR((struct task_struct*)uchild);
+  
+  /* Allocate pages for DATA+STACK */
+  int new_ph_pag, pag, i;
+  page_table_entry *process_PT = get_PT(&uchild->task);
+  for (pag = 0; pag < NUM_PAG_DATA; pag++) {
+    new_ph_pag = alloc_frame();
+    
+    if (new_ph_pag!=-1) {
+      set_ss_pag(process_PT, PAG_LOG_INIT_DATA + pag, new_ph_pag);
+    } else {
+      for (i=0; i<pag; i++) {
+        free_frame(get_frame(process_PT, PAG_LOG_INIT_DATA + i));
+        del_ss_pag(process_PT, PAG_LOG_INIT_DATA + i);
       }
-      return -1;
+
+      list_add_tail(lhcurrent, &freequeue);
+      
+      return -EAGAIN; 
     }
   }
 
-  // e) Inherit user data
-  //    i) Create new address space
-  page_table_entry* parent_page_table = get_PT(current());
-  page_table_entry* child_page_table = get_PT(task);
-  //    ii) Copy data+stack from parent to child
+  page_table_entry *parent_PT = get_PT(current());
+  for (pag = 0; pag < NUM_PAG_KERNEL; pag++)
+    set_ss_pag(process_PT, pag, get_frame(parent_PT, pag));
 
-  for (i = 0; i < NUM_PAG_DATA; ++i) {
-    set_ss_pag(parent_page_table, (unsigned) (PAG_LOG_INIT_DATA + NUM_PAG_DATA + i), (unsigned) allocated_frames[i]);
-    set_ss_pag(child_page_table, (unsigned) (PAG_LOG_INIT_DATA + i), (unsigned) allocated_frames[i]);
+  for (pag = 0; pag < NUM_PAG_CODE; pag++)
+    set_ss_pag(process_PT, PAG_LOG_INIT_CODE + pag, get_frame(parent_PT, PAG_LOG_INIT_CODE + pag));
+  
+  for (pag = NUM_PAG_KERNEL + NUM_PAG_CODE; pag < NUM_PAG_KERNEL + NUM_PAG_CODE + NUM_PAG_DATA; pag++) {
+    set_ss_pag(parent_PT, pag+NUM_PAG_DATA, get_frame(process_PT, pag));
+    copy_data((void*)(pag<<12), (void*)((pag+NUM_PAG_DATA)<<12), PAGE_SIZE);
+    del_ss_pag(parent_PT, pag+NUM_PAG_DATA);
   }
+  
+  set_cr3(get_DIR(current()));
+  
+  uchild->task.PID = numPID++;
+  uchild->task.state = ST_READY;
+  
+  int register_ebp;
+  __asm__ __volatile__ (
+    "movl %%ebp, %0\n\t"
+    : "=g" (register_ebp)
+    :
+  );
 
-  copy_data((void*) (PAG_LOG_INIT_DATA << 12), (void*) ((PAG_LOG_INIT_DATA + NUM_PAG_DATA) << 12), NUM_PAG_DATA * PAGE_SIZE);
+  register_ebp = (register_ebp - (int)current()) + (int)(uchild);
 
-  for (i = 0; i < NUM_PAG_DATA; ++i) {
-    del_ss_pag(parent_page_table, (unsigned int) PAG_LOG_INIT_DATA + NUM_PAG_DATA + i);
-  }
+  uchild->task.kernel_esp = register_ebp + sizeof(DWord);
+  
+  DWord temp_ebp=*(DWord*)register_ebp;
+  
+  uchild->task.kernel_esp -= sizeof(DWord);
+  *(DWord*)(uchild->task.kernel_esp) = (DWord)&ret_from_fork;
+  uchild->task.kernel_esp -= sizeof(DWord);
+  *(DWord*)(uchild->task.kernel_esp) = temp_ebp;
 
-	/* flush TLB */
-	set_cr3(get_DIR(current()));
+  init_stats(&(uchild->task.proc_stats));
 
-  // f) Assign PID
-  static int num_pids = 1;
-  PID = ++num_pids;
-
-  // g) Initialize fields of task_struct that are not common
-	union task_union* task_union = (union task_union*) task;
-	task_union->stack[KERNEL_STACK_SIZE - 1] = 0;
-	task_union->stack[KERNEL_STACK_SIZE - 2] = (int)&ret_from_fork;
-	task->kernel_esp = KERNEL_ESP(task_union);
-
-	list_add(&(task->list), &readyqueue);
-
-	task->state = ST_READY;
-
-  return PID;
+  uchild->task.state = ST_READY;
+  list_add_tail(&(uchild->task.list), &readyqueue);
+  
+  return uchild->task.PID;
 }
 
-void sys_exit()
-{  
+void sys_exit() {
+  int i;
+
+  page_table_entry *process_PT = get_PT(current());
+
+  // Deallocate all the propietary physical pages
+  for (i = 0; i < NUM_PAG_DATA; i++) {
+    free_frame(get_frame(process_PT, PAG_LOG_INIT_DATA + i));
+    del_ss_pag(process_PT, PAG_LOG_INIT_DATA + i);
+  }
+  
+  /* Free task_struct */
+  list_add_tail(&(current()->list), &freequeue);
+  
+  current()->PID=-1;
+  
+  /* Restarts execution of the next process */
+  sched_next_rr();
+}
+
+int sys_get_stats(int pid, struct stats *st) {
+  int i;
+  
+  if (!access_ok(VERIFY_WRITE, st, sizeof(struct stats)))
+    return -EFAULT; 
+  
+  if (pid < 0)
+    return -EINVAL;
+
+  for (i = 0; i < NR_TASKS; i++) {
+    if (task[i].task.PID == pid) {
+      task[i].task.proc_stats.remaining_ticks = ticks_to_leave;
+      copy_to_user(&(task[i].task.proc_stats), st, sizeof(struct stats));
+      return 0;
+    }
+  }
+
+  return -ESRCH;
 }

@@ -72,7 +72,7 @@ int __attribute__((__section__(".text.main")))
 
   /*** DO *NOT* ADD ANY CODE IN THIS ROUTINE BEFORE THIS POINT ***/
 
-  printk("Kernel Loaded!    ");
+  printk("Kernel Loaded!\n");
 
 
   /* Initialize hardware data */
@@ -89,11 +89,15 @@ int __attribute__((__section__(".text.main")))
 
   /* Initialize Scheduling */
   init_sched();
+  printk("Sched loaded\n");
 
   /* Initialize idle task  data */
   init_idle();
+  printk("Idle loaded\n");
+
   /* Initialize task 1 data */
   init_task1();
+  printk("Task1 loaded\n");
 
   /* Move user code/data now (after the page table initialization) */
   copy_data((void *) KERNEL_START + *p_sys_size, usr_main, *p_usr_size);
@@ -101,6 +105,7 @@ int __attribute__((__section__(".text.main")))
 
   printk("Entering user mode...");
 
+  zeos_init_auxjp();
   enable_int();
 
   /*

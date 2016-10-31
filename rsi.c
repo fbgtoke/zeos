@@ -25,6 +25,7 @@ void rsi_keyboard() {
 		unsigned char y = 0x00;
 		printc_xy(x, y, character);
 	}
+
 }
 
 void rsi_clock() {
