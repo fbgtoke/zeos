@@ -57,7 +57,7 @@ void cpu_idle(void)
 
 	while(1)
 	{
-	printk("IDLE    ");
+	;
 	}
 }
 
@@ -70,7 +70,6 @@ void init_idle (void) {
 	free_task->quantum = QUANTUM;
 	
 	init_stats(&(free_task->proc_stats));
-	printk("Init stats for idle process\n");
 	allocate_DIR(free_task);
 
 	// 1) Store in the stack of the idle process the address of the code that it will execute (address of the cpu_idle function).
@@ -140,34 +139,28 @@ void inner_task_switch(union task_union *t) {
 		6) ret
 	*/
 
-	printk("Inner Switching\n");
-
 	page_table_entry *new_DIR = get_DIR(&t->task);
 	tss.esp0 = (int) &(t->stack[KERNEL_STACK_SIZE]); // 1
 	set_cr3(new_DIR); // 2
 
-	printk("ASM 1\n");
 	__asm__ __volatile__(
 		"movl %%ebp, %0\n\t"
 		: "=g" (current()->kernel_esp)
 		: 
 	); // 3
 
-	printk("ASM 2\n");
 	__asm__ __volatile__(
 		"movl %0, %%esp" 
 		: 
 		: "g" (t->task.kernel_esp)
 	); // 4
 
-	printk("ASM 3\n");
 	__asm__ __volatile__(
 		"popl %%ebp"
 		:
 		:
 	); // 5
 
-	printk("ASM 4\n");
 	__asm__ __volatile__(
 		"ret\n\t"
 		:
@@ -176,7 +169,6 @@ void inner_task_switch(union task_union *t) {
 }
 
 void task_switch(union task_union *t) {
-	printk("Switching\n");
 
 	__asm__ __volatile__(
 		"pushl %esi\n\t"
@@ -184,11 +176,7 @@ void task_switch(union task_union *t) {
 		"pushl %ebx\n\t"
 	);
 
-	printk("Going to inner\n");
-
 	inner_task_switch(t);
-
-	printk("Exiting inner\n");
 
 	__asm__ __volatile__ (
 		"popl %ebx\n\t"
@@ -196,7 +184,6 @@ void task_switch(union task_union *t) {
 		"popl %esi\n\t"
 	);
 
-	printk("Done switching\n");
 }
 
 
@@ -248,9 +235,7 @@ void sched_next_rr() {
 	t->state = ST_RUN;
 	ticks_to_leave = get_quantum(t);
 
-	printk("Going to switch\n");
 	task_switch((union task_union*)t);
-	printk("Switched\n");
 
 	update_stats(&(current()->proc_stats.system_ticks), &(current()->proc_stats.elapsed_total_ticks));
 	update_stats(&(t->proc_stats.ready_ticks), &(t->proc_stats.elapsed_total_ticks));
@@ -261,9 +246,7 @@ void schedule() {
 	update_sched_data_rr();
 
   	if (needs_sched_rr()) {
-  		printk("Going to update state\n");
 	    update_process_state_rr(current(), &readyqueue);
-	    printk("Going to fetch next\n");
 	    sched_next_rr();
 	}
 }
