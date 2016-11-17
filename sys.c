@@ -187,12 +187,8 @@ int sys_clone(void (*function)(void), void *stack) {
   uchild->task.register_esp-=sizeof(DWord);
   *(DWord*)(uchild->task.register_esp)=(DWord)temp_ebp;
 
-  DWord* ebp = uchild->task.register_esp - 12*sizeof(DWord);
-  *ebp = (DWord)function;
-
-  /* Return point */
-  DWord* eip = uchild->task.register_esp - 6*sizeof(DWord);
-  *eip = (DWord)function;
+  uchild->stack[sizeof(union task_union)/sizeof(unsigned int) - 11] = function;
+  uchild->stack[sizeof(union task_union)/sizeof(unsigned int) - 5] = stack;
 
   /* Set stats to 0 */
   init_stats(&(uchild->task.p_stats));
