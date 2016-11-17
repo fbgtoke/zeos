@@ -71,7 +71,7 @@ void return_gate(Word ds, Word ss, DWord esp, Word cs, DWord eip)
     "pushl %4\n\t"       /* user eip */
     "lret"
     : /*no output*/
-    : "m" (ds), "m" (ss), "m" (esp), "m" (cs), "m" (eip), "d" (*p_rdtr));
+    : "g" (ds), "g" (ss), "g" (esp), "g" (cs), "g" (eip), "d" (*p_rdtr));
 }
 
 /*
@@ -79,7 +79,7 @@ void return_gate(Word ds, Word ss, DWord esp, Word cs, DWord eip)
  *
  *    register 0x21:
  *    7 6 5 4 3 2 1 0
- *    x x x x x x 0 0
+ *    x x x x x x x x
  *    
  *    bit 0 : Timer
  *    bit 1 : Keyboard

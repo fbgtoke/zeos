@@ -11,18 +11,10 @@
 
 extern Gate idt[IDT_ENTRIES];
 extern Register idtR;
-extern char char_map[];
 
 void setInterruptHandler(int vector, void (*handler)(), int maxAccessibleFromPL);
 void setTrapHandler(int vector, void (*handler)(), int maxAccessibleFromPL);
 
 void setIdt();
 
-// Interrupt handlers
-void handler_keyboard();
-void handler_clock();
-
-void system_call_handler();
-
-int zeos_ticks;
 #endif  /* __INTERRUPT_H__ */

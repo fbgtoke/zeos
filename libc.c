@@ -8,7 +8,8 @@
 
 int errno;
 
-void itoa(int a, char *b) {
+void itoa(int a, char *b)
+{
   int i, i1;
   char c;
   
@@ -31,7 +32,8 @@ void itoa(int a, char *b) {
   b[i]=0;
 }
 
-int strlen(char *a) {
+int strlen(char *a)
+{
   int i;
   
   i=0;
@@ -41,114 +43,126 @@ int strlen(char *a) {
   return i;
 }
 
-char* strcpy(char *strDest, const char *strSrc) {
-    char *temp = strDest;
-    while((*strDest++ = *strSrc++)); // or while((*strDest++=*strSrc++) != '\0');
-    return temp;
+void perror()
+{
+  char buffer[256];
+
+  itoa(errno, buffer);
+
+  write(1, buffer, strlen(buffer));
 }
 
-char* strcat(char *dest, const char *src) {
-    int i,j;
-    for (i = 0; dest[i] != '\0'; i++)
-        ;
-    for (j = 0; src[j] != '\0'; j++)
-        dest[i+j] = src[j];
-    dest[i+j] = '\0';
-    return dest;
-}
-
-void perror() {
-  char msg[128];
-  char num[4];
-  itoa(errno, num);
-
-  strcpy(msg, "Error #");
-  strcat(msg, num);
-  strcat(msg, ". Please refer to the Linux manual for more information\n");
-  write(1, msg, 128);
-}
-
-int write(int fd, char* buffer, int size) {
-	int erno;
-
-	__asm__ __volatile__(
-		"int	$0x80\n\t"
-		: "=a" (erno)
-		: "a" (0x04), "b" (fd), "c" (buffer), "d" (size)
-	);
-
-	if (erno < 0) {
-		errno = -erno;
-		return -1;
-	}
-
-	return erno;
-}
-
-int gettime() {
-	int erno;
-
-	__asm__ __volatile__(
-		"int	$0x80\n\t"
-		: "=a" (erno)
-		: "a" (0x0a)
-	);
-
-	return erno;
-}
-
-int getpid() {
-	int PID;
-
-	__asm__ __volatile__(
-		"int	$0x80\n\t"
-		: "=a" (PID)
-		: "a" (20)
-	);
-
-  errno = 0;
-	return PID;
-}
-
-int fork() {
-	int result;
+int write(int fd, char *buffer, int size)
+{
+  int result;
   
+  __asm__ __volatile__ (
+	"int $0x80\n\t"
+	: "=a" (result)
+	: "a" (4), "b" (fd), "c" (buffer), "d" (size));
+  if (result<0)
+  {
+    errno = -result;
+    return -1;
+  }
+  errno=0;
+  return result;
+}
+ 
+int gettime()
+{
+  int result;
+  
+  __asm__ __volatile__ (
+	"int $0x80\n\t"
+	:"=a" (result)
+	:"a" (10) );
+  errno=0;
+  return result;
+}
+
+int getpid()
+{
+  int result;
+  
+  __asm__ __volatile__ (
+  	"int $0x80\n\t"
+	:"=a" (result)
+	:"a" (20) );
+  errno=0;
+  return result;
+}
+
+int fork()
+{
+  int result;
+  
+  __asm__ __volatile__ (
+  	"int $0x80\n\t"
+	:"=a" (result)
+	:"a" (2) );
+  if (result<0)
+  {
+    errno = -result;
+    return -1;
+  }
+  errno=0;
+  return result;
+}
+
+int clone(void (*function)(void), void *stack) {
+  int result;
+
   __asm__ __volatile__ (
     "int $0x80\n\t"
     :"=a" (result)
-    :"a" (2)
+    :"a" (19), "b" (function), "c" (stack)
   );
-  
+
   if (result < 0) {
     errno = -result;
     return -1;
   }
-  errno = 0;
 
+  errno = 0;
   return result;
 }
 
-void exit(void) {
+void exit(void)
+{
   __asm__ __volatile__ (
-    "int $0x80\n\t"
-    :
-    :"a" (1)
-  );
+  	"int $0x80\n\t"
+	:
+	:"a" (1) );
 }
 
-int get_stats(int pid, struct stats *st) {
+int yield()
+{
   int result;
   __asm__ __volatile__ (
-    "int $0x80\n\t"
-    : "=a" (result)
-    : "a" (35), "b" (pid), "c" (st)
-  );
+  	"int $0x80\n\t"
+	:"=a" (result)
+	:"a" (13) );
+  return result;
+}
 
-  if (result < 0) {
+int get_stats(int pid, struct stats *st)
+{
+  int result;
+  __asm__ __volatile__ (
+  	"int $0x80\n\t"
+	:"=a" (result)
+	:"a" (35), "b" (pid), "c" (st) );
+  if (result<0)
+  {
     errno = -result;
     return -1;
   }
-  
-  errno = 0;
+  errno=0;
   return result;
 }
+
+int sem_init(int n_sem, unsigned int value) { return -1; }
+int sem_wait(int n_sem) { return -1; }
+int sem_signal(int n_sem) { return -1; }
+int sem_destroy(int n_sem) { return -1; }

@@ -4,6 +4,7 @@
 
 #include <asm.h>
 #include <segment.h>
+#include <errno.h>
 
 
 /**************************************************/
@@ -52,19 +53,65 @@
       movl %edx, %es
 
 #define RESTORE_ALL \
-      popl %ebx; \
-      popl %ecx; \
-      popl %edx; \
-      popl %esi; \
-      popl %edi; \
-      popl %ebp; \
-      popl %eax; \
-      popl %ds; \
-      popl %es; \
-      popl %fs; \
+      popl %ebx;   \
+      popl %ecx;   \
+      popl %edx;   \
+      popl %esi;   \
+      popl %edi;   \
+      popl %ebp;   \
+      popl %eax;   \
+      popl %ds;    \
+      popl %es;    \
+      popl %fs;    \
       popl %gs;
 
 #define EOI \
       movb $0x20, %al; \
-      outb %al , $0x20 ;
+      outb %al, $0x20;
 
+ENTRY(clock_handler)
+      SAVE_ALL
+      pushl %eax;
+      call user_to_system;
+      popl %eax;
+      EOI
+      call clock_routine;
+      pushl %eax;
+      call system_to_user;
+      popl %eax;
+      RESTORE_ALL
+      iret;
+
+ENTRY(keyboard_handler)
+      SAVE_ALL
+      pushl %eax;
+      call user_to_system;
+      popl %eax;
+      EOI
+      call keyboard_routine;
+      pushl %eax;
+      call system_to_user;
+      popl %eax;
+      RESTORE_ALL
+      iret;
+
+ENTRY(system_call_handler)
+      SAVE_ALL
+      pushl %eax;
+      call user_to_system;
+      popl %eax;
+      cmpl $0, %eax;
+      jl err;
+      cmpl $MAX_SYSCALL, %eax;
+      jg err;
+      call *sys_call_table(, %eax, 0x4);
+      jmp fin;
+err:
+      movl $-ENOSYS, %eax;
+fin:
+      movl %eax, 0x18(%esp);
+      pushl %eax;
+      call system_to_user;
+      popl %eax;
+      RESTORE_ALL
+      iret;

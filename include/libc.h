@@ -8,22 +8,31 @@
 
 #include <stats.h>
 
+extern int errno;
+
+int write(int fd, char *buffer, int size);
+
 void itoa(int a, char *b);
 
 int strlen(char *a);
+
+void perror();
 
 int getpid();
 
 int fork();
 
+int clone(void (*function)(void), void *stack);
+
 void exit();
 
-void perror();
-int write(int fd, char *buffer, int size);
-int gettime();
-
-int getpid();
+int yield();
 
 int get_stats(int pid, struct stats *st);
+
+int sem_init(int n_sem, unsigned int value);
+int sem_wait(int n_sem);
+int sem_signal(int n_sem);
+int sem_destroy(int n_sem);
 
 #endif  /* __LIBC_H__ */

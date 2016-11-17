@@ -11,7 +11,7 @@
 #include <mm.h>
 #include <io.h>
 #include <utils.h>
-#include <zeos_mm.h> /* TO BE DELETED WHEN ADDED THE PROCESS MANAGEMENT CODE TO BECOME MULTIPROCESS */
+//#include <zeos_mm.h> /* TO BE DELETED WHEN ADDED THE PROCESS MANAGEMENT CODE TO BECOME MULTIPROCESS */
 
 
 int (*usr_main)(void) = (void *) PH_USER_START;
@@ -57,8 +57,8 @@ inline void set_seg_regs(Word data_sel, Word stack_sel, DWord esp)
 /*
  *   Main entry point to ZEOS Operating System
  */
-int __attribute__((__section__(".text.main")))
-  main(void)
+int __attribute__((__section__(".text.main"))) 
+  main(void) 
 {
 
   set_eflags();
@@ -70,10 +70,7 @@ int __attribute__((__section__(".text.main")))
   // (we are still in real mode).
   set_seg_regs(__KERNEL_DS, __KERNEL_DS, (DWord) &protected_tasks[5]);
 
-  /*** DO *NOT* ADD ANY CODE IN THIS ROUTINE BEFORE THIS POINT ***/
-
-  printk("Kernel Loaded!\n");
-
+  printk("Kernel Loaded!    "); 
 
   /* Initialize hardware data */
   setGdt(); /* Definicio de la taula de segments de memoria */
@@ -89,25 +86,19 @@ int __attribute__((__section__(".text.main")))
 
   /* Initialize Scheduling */
   init_sched();
-  printk("Sched loaded\n");
 
   /* Initialize idle task  data */
   init_idle();
-  printk("Idle loaded\n");
-
   /* Initialize task 1 data */
   init_task1();
-  printk("Task1 loaded\n");
 
   /* Move user code/data now (after the page table initialization) */
   copy_data((void *) KERNEL_START + *p_sys_size, usr_main, *p_usr_size);
-
-
-  printk("Entering user mode...");
-
+  
+  printk("Entering user mode..."); 
+  
   zeos_init_auxjp();
   enable_int();
-
   /*
    * We return from a 'theorical' call to a 'call gate' to reduce our privileges
    * and going to execute 'magically' at 'usr_main'...
