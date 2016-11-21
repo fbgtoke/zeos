@@ -78,4 +78,13 @@ void update_sched_data_rr();
 
 void init_stats(struct stats *s);
 
+#define NUM_SEMAPHORES 20
+#define SEM_NOT_INIT -1
+struct semaphore_struct {
+	int owner_pid;
+	int counter;
+	struct list_head blocked_procs;
+};
+struct semaphore_struct semaphores[NUM_SEMAPHORES];
+
 #endif  /* __SCHED_H__ */

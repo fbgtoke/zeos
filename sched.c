@@ -20,13 +20,6 @@ union task_union protected_tasks[NR_TASKS+2]
 
 union task_union *task = &protected_tasks[1]; /* task array */
 
-#if 0
-struct task_struct *list_head_to_task_struct(struct list_head *l)
-{
-  return list_entry( l, struct task_struct, list);
-}
-#endif
-
 extern struct list_head blocked;
 
 // Free task structs
@@ -74,7 +67,7 @@ int allocate_DIR(struct task_struct *t)
 
 int get_my_dir(struct task_struct * t) {
   return
-    ((int)t->dir_pages_baseAddr - (int)&dir_pages[0]) / sizeof(page_table_entry);
+    ((int)t->dir_pages_baseAddr - (int)&dir_pages[0]) / (sizeof(page_table_entry) * TOTAL_PAGES);
 }
 
 void cpu_idle(void)
@@ -232,6 +225,13 @@ void init_sched()
 {
   init_freequeue();
   INIT_LIST_HEAD(&readyqueue);
+
+  /* Initialize semaphores */
+  int i;
+  for (i = 0; i < NUM_SEMAPHORES; ++i) {
+    semaphores[i].owner_pid = SEM_NOT_INIT;
+    INIT_LIST_HEAD(&semaphores[i].blocked_procs);
+  }
 }
 
 struct task_struct* current()

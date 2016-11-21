@@ -152,6 +152,11 @@ int sys_fork(void)
 }
 
 int sys_clone(void (*function)(void), void *stack) {
+  if (!access_ok(VERIFY_WRITE, function, 1))
+    return -1;
+  if (!access_ok(VERIFY_WRITE, stack, 1))
+    return -1;
+
   struct list_head *lhcurrent = NULL;
   union task_union *uchild;
   
@@ -166,9 +171,6 @@ int sys_clone(void (*function)(void), void *stack) {
   
   /* Copy the parent's task struct to child's */
   copy_data(current(), uchild, sizeof(union task_union));
-
-  uchild->task.PID=++global_PID;
-  uchild->task.state=ST_READY;
   
   int register_ebp;   /* frame pointer */
   /* Map Parent's ebp to child's stack */
@@ -187,13 +189,14 @@ int sys_clone(void (*function)(void), void *stack) {
   uchild->task.register_esp-=sizeof(DWord);
   *(DWord*)(uchild->task.register_esp)=(DWord)temp_ebp;
 
-  uchild->stack[sizeof(union task_union)/sizeof(unsigned int) - 11] = function;
-  uchild->stack[sizeof(union task_union)/sizeof(unsigned int) - 5] = stack;
+  uchild->stack[KERNEL_STACK_SIZE - 2] = (unsigned int)stack;
+  uchild->stack[KERNEL_STACK_SIZE - 5] = (unsigned int)function;
 
   /* Set stats to 0 */
   init_stats(&(uchild->task.p_stats));
 
   /* Queue child process into readyqueue */
+  uchild->task.PID=++global_PID;
   uchild->task.state=ST_READY;
   list_add_tail(&(uchild->task.list), &readyqueue);
 
@@ -256,11 +259,16 @@ void sys_exit()
   
   /* Free task_struct */
   list_add_tail(&(current()->list), &freequeue);
+
+  for (i = 0; i < NUM_SEMAPHORES; ++i) {
+    if (semaphores[i].owner_pid == current()->PID)
+      sys_sem_destroy(i);
+  }
   
   current()->PID=-1;
 
   int proc_dir = get_my_dir(current());
-  dir_used_by[proc_dir]--;
+  --dir_used_by[proc_dir];
   
   /* Restarts execution of the next process */
   sched_next_rr();
@@ -294,7 +302,76 @@ int sys_get_stats(int pid, struct stats *st)
   return -ESRCH; /*ESRCH */
 }
 
-int sys_sem_init() { return -1; }
-int sys_sem_wait() { return -1; }
-int sys_sem_signal() { return -1; }
-int sys_sem_destroy() { return -1; }
+int sys_sem_init(int n_sem, unsigned int value) {
+  if (n_sem < 0 || n_sem >= NUM_SEMAPHORES)
+    return -EINVAL;
+  if (semaphores[n_sem].owner_pid != SEM_NOT_INIT)
+    return -EBUSY;
+
+  semaphores[n_sem].owner_pid = current()->PID;
+  semaphores[n_sem].counter = value;
+  INIT_LIST_HEAD(&semaphores[n_sem].blocked_procs);
+
+  return 0;
+}
+
+int sys_sem_wait(int n_sem) {
+  if (n_sem < 0 || n_sem >= NUM_SEMAPHORES)
+    return -EINVAL;
+  if (semaphores[n_sem].owner_pid == SEM_NOT_INIT)
+    return -EINVAL;
+
+  if (n_sem <= 0) {
+    update_process_state_rr(current(), &semaphores[n_sem].blocked_procs);
+    sched_next_rr();
+
+    if (semaphores[n_sem].owner_pid == SEM_NOT_INIT)
+      return -EINVAL;
+  } else {
+    --semaphores[n_sem].counter;
+  }
+
+  return 0;
+}
+
+int sys_sem_signal(int n_sem) {
+  if (n_sem < 0 || n_sem >= NUM_SEMAPHORES)
+    return -EINVAL;
+  if (semaphores[n_sem].owner_pid == SEM_NOT_INIT)
+    return -EINVAL;
+
+  if (list_empty(&semaphores[n_sem].blocked_procs)) {
+    ++semaphores[n_sem].counter;
+  } else {
+    struct list_head* first = list_first(&semaphores[n_sem].blocked_procs);
+    struct task_struct* task = list_head_to_task_struct(first);
+
+    list_del(first);
+    list_add_tail(first, &readyqueue);
+    task->state = ST_READY;
+  }
+
+  return 0;
+}
+
+int sys_sem_destroy(int n_sem) {
+  if (n_sem < 0 || n_sem >= NUM_SEMAPHORES)
+    return -EINVAL;
+  if (semaphores[n_sem].owner_pid == SEM_NOT_INIT)
+    return -EINVAL;
+  if (current()->PID != semaphores[n_sem].owner_pid)
+    return -EPERM;
+
+  while (!list_empty(&semaphores[n_sem].blocked_procs)) {
+    struct list_head* first = list_first(&semaphores[n_sem].blocked_procs);
+    struct task_struct* task = list_head_to_task_struct(first);
+
+    list_del(first);
+    list_add_tail(first, &readyqueue);
+    task->state = ST_READY;
+  }
+
+  semaphores[n_sem].owner_pid = SEM_NOT_INIT;
+
+  return 0;
+}
