@@ -210,9 +210,9 @@ int sys_clone(void (*function)(void), void *stack) {
 #define TAM_BUFFER 512
 
 int sys_write(int fd, char *buffer, int nbytes) {
-char localbuffer [TAM_BUFFER];
-int bytes_left;
-int ret;
+  char localbuffer [TAM_BUFFER];
+  int bytes_left;
+  int ret;
 
 	if ((ret = check_fd(fd, ESCRIPTURA)))
 		return ret;
@@ -250,11 +250,16 @@ void sys_exit()
 
   page_table_entry *process_PT = get_PT(current());
 
+  int proc_dir = get_my_dir(current());
+  --dir_used_by[proc_dir];
+
   // Deallocate all the propietary physical pages
-  for (i=0; i<NUM_PAG_DATA; i++)
-  {
-    free_frame(get_frame(process_PT, PAG_LOG_INIT_DATA+i));
-    del_ss_pag(process_PT, PAG_LOG_INIT_DATA+i);
+  if (dir_used_by[proc_dir] == 0) {
+    for (i=0; i<NUM_PAG_DATA; i++)
+    {
+      free_frame(get_frame(process_PT, PAG_LOG_INIT_DATA+i));
+      del_ss_pag(process_PT, PAG_LOG_INIT_DATA+i);
+    }
   }
   
   /* Free task_struct */
@@ -266,9 +271,6 @@ void sys_exit()
   }
   
   current()->PID=-1;
-
-  int proc_dir = get_my_dir(current());
-  --dir_used_by[proc_dir];
   
   /* Restarts execution of the next process */
   sched_next_rr();
@@ -321,7 +323,7 @@ int sys_sem_wait(int n_sem) {
   if (semaphores[n_sem].owner_pid == SEM_NOT_INIT)
     return -EINVAL;
 
-  if (n_sem <= 0) {
+  if (semaphores[n_sem].counter <= 0) {
     update_process_state_rr(current(), &semaphores[n_sem].blocked_procs);
     sched_next_rr();
 

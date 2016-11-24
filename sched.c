@@ -54,7 +54,7 @@ page_table_entry * get_PT (struct task_struct *t)
 int allocate_DIR(struct task_struct *t) 
 {
   int i = 0;
-  while (i < NR_TASKS && dir_used_by[i++] != 0);
+  while ((i < NR_TASKS) && (dir_used_by[i++] != 0));
 
   if (i == NR_TASKS)
     return -1;
@@ -259,7 +259,8 @@ void inner_task_switch(union task_union *new)
   tss.esp0=(int)&(new->stack[KERNEL_STACK_SIZE]);
 
   /* TLB flush. New address space */
-  set_cr3(new_DIR);
+  if (get_DIR(new) != get_DIR(current()))
+    set_cr3(new_DIR);
 
   /* Stores current ebp */
   __asm__ __volatile__ (

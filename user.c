@@ -13,11 +13,8 @@ void hola() {
 
 int __attribute__ ((__section__(".text.main"))) main(void) {
 
-  runjp();
-  //unsigned int stack[128];
-  //clone(&hola, stack);
+  runjp();  
 
   while(1) {
-  	//write(1, "adios", 5);
   }
 }
